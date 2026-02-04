@@ -1,0 +1,65 @@
+# =============================================================================
+# OpenClaw Docker Compose Configuration
+# =============================================================================
+# This compose file is designed for EC2 deployment with AWS Bedrock.
+# It uses the official Node.js slim image and installs OpenClaw at runtime.
+#
+# Note: The node:22-bookworm-slim image is minimal and requires additional
+# packages for openclaw's npm install to work:
+#   - git: Required by npm for some git-based dependencies
+#   - openssh-client: Required by libsignal-node to clone via SSH
+#   - curl: Required for healthcheck and general HTTP operations
+#   - ca-certificates: Required for HTTPS connections
+# =============================================================================
+
+version: "3.8"
+
+services:
+  openclaw-gateway:
+    image: node:22-bookworm-slim
+    container_name: openclaw-gateway
+    restart: unless-stopped
+    working_dir: /app
+    
+    # Install required dependencies and openclaw at container startup
+    command: >
+      sh -c "
+        apt-get update && 
+        apt-get install -y curl git openssh-client ca-certificates --no-install-recommends &&
+        rm -rf /var/lib/apt/lists/* &&
+        npm install -g openclaw@latest &&
+        openclaw gateway --port 18789 --bind lan --verbose
+      "
+    
+    ports:
+      - "18789:18789"
+    
+    volumes:
+      # Persist OpenClaw state and configuration
+      # On EC2, these map to /home/ec2-user/.openclaw
+      - ${OPENCLAW_CONFIG_PATH:-~/.openclaw}:/root/.openclaw
+      - ${OPENCLAW_WORKSPACE_PATH:-~/.openclaw/workspace}:/root/.openclaw/workspace
+    
+    environment:
+      # AWS_PROFILE=default is a workaround for OpenClaw's credential detection
+      # which only checks env vars, not IMDS. See: https://docs.openclaw.ai/bedrock
+      - AWS_PROFILE=default
+      # AWS Bedrock configuration (credentials come from IAM instance role)
+      - AWS_REGION=${AWS_REGION:-eu-west-1}
+      - AWS_DEFAULT_REGION=${AWS_REGION:-eu-west-1}
+      # OpenClaw settings
+      - NODE_ENV=production
+    
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:18789/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      # Allow 5 minutes for apt-get + npm install to complete on first start
+      start_period: 300s
+    
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"

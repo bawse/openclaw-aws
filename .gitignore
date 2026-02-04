@@ -1,0 +1,52 @@
+# =============================================================================
+# OpenClaw AWS Deployment - Git Ignore
+# =============================================================================
+
+# Terraform
+terraform/.terraform/
+terraform/.terraform.lock.hcl
+terraform/*.tfstate
+terraform/*.tfstate.*
+terraform/tfplan
+terraform/*.tfplan
+terraform/crash.log
+terraform/crash.*.log
+terraform/*.tfvars
+terraform/*.tfvars.json
+!terraform/*.tfvars.example
+
+# SSH Keys (sensitive)
+.keys/
+*.pem
+*.pub
+
+# Environment files (may contain secrets)
+.env
+.env.local
+.env.*.local
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Editor
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# Logs
+*.log
+logs/
+
+# Docker
+docker/.env
+
+# Node modules (if running locally)
+node_modules/
+
+# Temporary files
+tmp/
+temp/
