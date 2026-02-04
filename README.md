@@ -5,6 +5,7 @@ Deploy [OpenClaw](https://docs.openclaw.ai/) on AWS with one command.
 ```bash
 git clone https://github.com/bawse/openclaw-aws.git
 cd openclaw-aws
+export TF_VAR_environment="yourname"  # Use your name or any unique identifier
 ./scripts/deploy.sh apply
 ```
 
@@ -74,12 +75,13 @@ export TF_VAR_instance_type="t3.medium"
 | `bedrock_model_primary` | `claude-sonnet-4-5` | Primary model |
 | `allowed_ssh_cidrs` | `["0.0.0.0/0"]` | Allowed SSH IPs |
 
-### Multiple Environments
+### Persisting Environment
 
-Use unique `environment` values to run multiple instances:
+Add to your shell profile so scripts work across sessions:
 
 ```bash
-TF_VAR_environment="staging" ./scripts/deploy.sh apply
+echo 'export TF_VAR_environment="yourname"' >> ~/.zshrc
+source ~/.zshrc
 ```
 
 ## Bedrock Models
