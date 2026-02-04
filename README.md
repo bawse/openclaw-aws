@@ -5,7 +5,7 @@ Deploy [OpenClaw](https://docs.openclaw.ai/) on AWS with one command.
 ```bash
 git clone https://github.com/bawse/openclaw-aws.git
 cd openclaw-aws
-export TF_VAR_environment="yourname"  # Use your name or any unique identifier
+export TF_VAR_environment="assistant"  # Use your name or any unique identifier
 ./scripts/deploy.sh apply
 ```
 
