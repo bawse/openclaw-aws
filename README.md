@@ -54,6 +54,8 @@ choco install terraform awscli && aws configure
 | `./scripts/deploy.sh plan` | Preview changes |
 | `./scripts/deploy.sh destroy` | Tear down everything |
 | `./scripts/connect.sh` | Connect to OpenClaw |
+| `./scripts/update.sh` | Update to latest version |
+| `./scripts/update.sh --auto-enable` | Enable auto-updates (every 6h) |
 | `./scripts/ssh.sh` | SSH into instance |
 | `./scripts/logs.sh [gateway\|setup]` | View logs |
 

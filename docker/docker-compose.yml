@@ -5,11 +5,14 @@
 # It uses the official Node.js slim image and installs OpenClaw at runtime.
 #
 # Note: The node:22-bookworm-slim image is minimal and requires additional
-# packages for openclaw's npm install to work:
+# packages for openclaw's npm install and automation to work:
 #   - git: Required by npm for some git-based dependencies
 #   - openssh-client: Required by libsignal-node to clone via SSH
 #   - curl: Required for healthcheck and general HTTP operations
 #   - ca-certificates: Required for HTTPS connections
+#   - python3/pip/venv: Required for running Python automation scripts
+#   - cron: Required for scheduled jobs
+#   - procps: Required for ps, top, kill process management
 # =============================================================================
 
 version: "3.8"
@@ -22,12 +25,18 @@ services:
     working_dir: /app
     
     # Install required dependencies and openclaw at container startup
+    # Includes:
+    #   - Python3 + pip + venv: For running automation scripts
+    #   - cron: For scheduled jobs
+    #   - procps: For ps, top, kill commands
+    #   - supervisor: For managing background processes
     command: >
       sh -c "
         apt-get update && 
-        apt-get install -y curl git openssh-client ca-certificates --no-install-recommends &&
+        apt-get install -y curl git openssh-client ca-certificates python3 python3-pip python3-venv cron procps --no-install-recommends &&
         rm -rf /var/lib/apt/lists/* &&
         npm install -g openclaw@latest &&
+        service cron start &&
         openclaw gateway --port 18789 --bind lan --verbose
       "
     
