@@ -79,31 +79,41 @@ get_region_prefix() {
 
 PROFILE_PREFIX=$(get_region_prefix "$REGION")
 
-# Check if Claude 4.5 is available in this region
+# Check if Claude 4.5+ (including Opus 4.6) is available in this region
 is_claude_45_available() {
     local prefix="$1"
-    # Claude 4.5 is available in US and EU regions
+    # Claude 4.5+ models are available in US and EU regions
     [[ "$prefix" == "us" || "$prefix" == "eu" ]]
 }
 
-# Define models based on region availability
-declare -a MODEL_NAMES
-declare -A MODELS
-
+# Define models based on region availability (using parallel arrays for bash 3.x compatibility)
 if is_claude_45_available "$PROFILE_PREFIX"; then
-    MODEL_NAMES=("Claude Sonnet 4.5" "Claude 3.7 Sonnet" "Claude 3.5 Sonnet v2")
-    MODELS["Claude Sonnet 4.5"]="${PROFILE_PREFIX}.anthropic.claude-sonnet-4-5-20250929-v1:0"
-    MODELS["Claude 3.7 Sonnet"]="${PROFILE_PREFIX}.anthropic.claude-3-7-sonnet-20250219-v1:0"
-    MODELS["Claude 3.5 Sonnet v2"]="${PROFILE_PREFIX}.anthropic.claude-3-5-sonnet-20241022-v2:0"
+    MODEL_NAMES=(
+        "Claude Opus 4.6"
+        "Claude Sonnet 4.5"
+        "Claude 3.7 Sonnet"
+        "Claude 3.5 Sonnet v2"
+    )
+    MODEL_IDS=(
+        "${PROFILE_PREFIX}.anthropic.claude-opus-4-6-v1"
+        "${PROFILE_PREFIX}.anthropic.claude-sonnet-4-5-20250929-v1:0"
+        "${PROFILE_PREFIX}.anthropic.claude-3-7-sonnet-20250219-v1:0"
+        "${PROFILE_PREFIX}.anthropic.claude-3-5-sonnet-20241022-v2:0"
+    )
 else
     # APAC and other regions: Claude 4.5 not available, use Claude 3.5
-    MODEL_NAMES=("Claude 3.5 Sonnet v2" "Claude 3 Haiku")
-    MODELS["Claude 3.5 Sonnet v2"]="${PROFILE_PREFIX}.anthropic.claude-3-5-sonnet-20241022-v2:0"
-    MODELS["Claude 3 Haiku"]="${PROFILE_PREFIX}.anthropic.claude-3-haiku-20240307-v1:0"
+    MODEL_NAMES=(
+        "Claude 3.5 Sonnet v2"
+        "Claude 3 Haiku"
+    )
+    MODEL_IDS=(
+        "${PROFILE_PREFIX}.anthropic.claude-3-5-sonnet-20241022-v2:0"
+        "${PROFILE_PREFIX}.anthropic.claude-3-haiku-20240307-v1:0"
+    )
 fi
 
-# Test payload
-TEST_PAYLOAD='{"messages":[{"role":"user","content":[{"text":"Hi"}]}],"inferenceConfig":{"maxTokens":10}}'
+# Test payload (Anthropic Messages API format)
+TEST_PAYLOAD='{"anthropic_version":"bedrock-2023-05-31","messages":[{"role":"user","content":"Hi"}],"max_tokens":10}'
 
 # Check prerequisites
 log_step "Checking prerequisites..."
@@ -127,9 +137,9 @@ log_step "Region configuration"
 echo "  Region: $REGION"
 echo "  Inference profile prefix: $PROFILE_PREFIX"
 if is_claude_45_available "$PROFILE_PREFIX"; then
-    log_success "Claude 4.5 models available in this region"
+    log_success "Claude 4.5+ models (including Opus 4.6) available in this region"
 else
-    log_warning "Claude 4.5 models NOT available in $REGION"
+    log_warning "Claude 4.5+ models NOT available in $REGION"
     echo "         Using Claude 3.5 Sonnet as primary model"
 fi
 echo ""
@@ -149,29 +159,33 @@ log_step "Enabling models..."
 echo ""
 
 # Try to enable each model
-for MODEL_NAME in "${MODEL_NAMES[@]}"; do
-    MODEL_ID="${MODELS[$MODEL_NAME]}"
+i=0
+while [ $i -lt ${#MODEL_NAMES[@]} ]; do
+    MODEL_NAME="${MODEL_NAMES[$i]}"
+    MODEL_ID="${MODEL_IDS[$i]}"
     
     echo -n "  $MODEL_NAME... "
     
     if aws bedrock-runtime invoke-model \
         --model-id "$MODEL_ID" \
         --body "file://$PAYLOAD_FILE" \
+        --cli-binary-format raw-in-base64-out \
         --region "$REGION" \
-        "$RESPONSE_FILE" 2>/dev/null; then
+        "$RESPONSE_FILE" >/dev/null 2>&1; then
         
         # Check if we got a valid response
         if [[ -f "$RESPONSE_FILE" ]] && grep -q "content" "$RESPONSE_FILE" 2>/dev/null; then
             echo -e "${GREEN}enabled${NC}"
-            ENABLED_MODELS+=("$MODEL_NAME")
+            ENABLED_MODELS=("${ENABLED_MODELS[@]}" "$MODEL_NAME")
         else
             echo -e "${YELLOW}unverified${NC}"
-            ENABLED_MODELS+=("$MODEL_NAME (unverified)")
+            ENABLED_MODELS=("${ENABLED_MODELS[@]}" "$MODEL_NAME (unverified)")
         fi
     else
         echo -e "${RED}failed${NC}"
-        FAILED_MODELS+=("$MODEL_NAME")
+        FAILED_MODELS=("${FAILED_MODELS[@]}" "$MODEL_NAME")
     fi
+    i=$((i + 1))
 done
 
 # Summary

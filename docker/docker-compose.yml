@@ -1,44 +1,32 @@
 # =============================================================================
 # OpenClaw Docker Compose Configuration
 # =============================================================================
-# This compose file is designed for EC2 deployment with AWS Bedrock.
-# It uses the official Node.js slim image and installs OpenClaw at runtime.
+# This compose file builds and runs the OpenClaw gateway container.
+# All dependencies are baked into the image via the Dockerfile for fast restarts.
 #
-# Note: The node:22-bookworm-slim image is minimal and requires additional
-# packages for openclaw's npm install and automation to work:
-#   - git: Required by npm for some git-based dependencies
-#   - openssh-client: Required by libsignal-node to clone via SSH
-#   - curl: Required for healthcheck and general HTTP operations
-#   - ca-certificates: Required for HTTPS connections
-#   - python3/pip/venv: Required for running Python automation scripts
-#   - cron: Required for scheduled jobs
-#   - procps: Required for ps, top, kill process management
+# Commands:
+#   Build:   docker-compose build
+#   Start:   docker-compose up -d
+#   Rebuild: docker-compose up -d --build
+#   Logs:    docker-compose logs -f
 # =============================================================================
 
 version: "3.8"
 
 services:
   openclaw-gateway:
-    image: node:22-bookworm-slim
+    # Build from local Dockerfile instead of pulling a base image
+    # This bakes in all dependencies for fast, reliable restarts
+    build:
+      context: .
+      dockerfile: Dockerfile
+    
+    # Tag the built image for easier management
+    image: openclaw-gateway:latest
+    
     container_name: openclaw-gateway
     restart: unless-stopped
     working_dir: /app
-    
-    # Install required dependencies and openclaw at container startup
-    # Includes:
-    #   - Python3 + pip + venv: For running automation scripts
-    #   - cron: For scheduled jobs
-    #   - procps: For ps, top, kill commands
-    #   - supervisor: For managing background processes
-    command: >
-      sh -c "
-        apt-get update && 
-        apt-get install -y curl git openssh-client ca-certificates python3 python3-pip python3-venv cron procps --no-install-recommends &&
-        rm -rf /var/lib/apt/lists/* &&
-        npm install -g openclaw@latest &&
-        service cron start &&
-        openclaw gateway --port 18789 --bind lan --verbose
-      "
     
     ports:
       - "18789:18789"
@@ -58,14 +46,6 @@ services:
       - AWS_DEFAULT_REGION=${AWS_REGION:-eu-west-1}
       # OpenClaw settings
       - NODE_ENV=production
-    
-    healthcheck:
-      test: ["CMD", "curl", "-sf", "http://localhost:18789/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 5
-      # Allow 5 minutes for apt-get + npm install to complete on first start
-      start_period: 300s
     
     logging:
       driver: "json-file"
